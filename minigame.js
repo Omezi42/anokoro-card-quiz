@@ -89,7 +89,6 @@ async function initMinigamesSection() {
         currentQuiz.attemptCount = 0;
         currentQuiz.fullCardImage = null;
         currentQuiz.transparentIllustrationImage = null;
-        currentQuiz.illustrationImage = null;
         currentQuiz.originalImageData = null;
 
         if (quizDisplayArea) quizDisplayArea.style.display = 'none';
@@ -221,189 +220,114 @@ async function initMinigamesSection() {
         }
     }
 
-    // イラスト拡大クイズの描画ロジック
-    function drawEnlargedImage(ctx, img, attempt, destX, destY, destWidth, destHeight) {
-        const imgWidth = img.naturalWidth;
-        const imgHeight = img.naturalHeight;
+    function drawQuizImage() {
+        if (!currentQuiz.quizCtx || !currentQuiz.quizCanvas || !currentQuiz.fullCardImage) return;
+        const ctx = currentQuiz.quizCtx;
+        const img = currentQuiz.fullCardImage;
+        ctx.clearRect(0, 0, currentQuiz.quizCanvas.width, currentQuiz.quizCanvas.height);
+        if (!img || !img.complete || img.naturalWidth === 0) return;
 
-        const initialDisplaySize = 10;
-        const sizeIncrement = 10;
-        let displaySize = initialDisplaySize + attempt * sizeIncrement;
+        const destX = 0, destY = 0, destWidth = currentQuiz.quizCanvas.width, destHeight = currentQuiz.quizCanvas.height;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, destWidth, destHeight);
 
-        if (displaySize > Math.min(imgWidth, imgHeight)) {
-            displaySize = Math.min(imgWidth, imgHeight);
+        switch (currentQuiz.type) {
+            case 'enlarge': drawEnlargedImage(ctx, img, currentQuiz.attemptCount, destX, destY, destWidth, destHeight); break;
+            case 'silhouette': drawSilhouetteImage(ctx, currentQuiz.fullCardImage, currentQuiz.transparentIllustrationImage, destWidth, destHeight); break;
+            case 'mosaic': drawMosaicImage(ctx, img, currentQuiz.attemptCount, destX, destY, destWidth, destHeight); break;
         }
-
-        const sourceX = Math.floor(imgWidth / 2 - displaySize / 2);
-        const sourceY = Math.floor(imgHeight * 0.25 - displaySize / 2);
-
-        ctx.drawImage(
-            img,
-            sourceX, sourceY, displaySize, displaySize,
-            destX, destY, destWidth, destHeight
-        );
+    }
+    
+    function drawEnlargedImage(ctx, img, attempt, destX, destY, destWidth, destHeight) {
+        const displaySize = 10 + attempt * 10;
+        const sourceX = Math.floor(img.naturalWidth / 2 - displaySize / 2);
+        const sourceY = Math.floor(img.naturalHeight * 0.25 - displaySize / 2);
+        ctx.drawImage(img, sourceX, sourceY, displaySize, displaySize, destX, destY, destWidth, destHeight);
     }
 
-    // イラストシルエットクイズの描画ロジック
-    function drawSilhouetteImage(ctx, bgIllustrationImg, transparentImg, canvasWidth, canvasHeight) {
+    function drawSilhouetteImage(ctx, fullCardImg, transparentImg, canvasWidth, canvasHeight) {
         ctx.clearRect(0, 0, canvasWidth, canvasHeight);
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
-        function calculateDrawDims(image) {
-            const imgAspectRatio = image.naturalWidth / image.naturalHeight;
+        if (fullCardImg && fullCardImg.complete) {
+            const cropX = 20, cropY = 90, cropWidth = 437, cropHeight = 220;
+            const cropAspectRatio = cropWidth / cropHeight;
             const canvasAspectRatio = canvasWidth / canvasHeight;
-
             let drawWidth, drawHeight, offsetX, offsetY;
-
-            if (imgAspectRatio > canvasAspectRatio) {
-                drawWidth = canvasWidth;
-                drawHeight = canvasWidth / imgAspectRatio;
-                offsetX = 0;
-                offsetY = (canvasHeight - drawHeight) / 2;
+            if (cropAspectRatio > canvasAspectRatio) {
+                drawWidth = canvasWidth; drawHeight = canvasWidth / cropAspectRatio;
+                offsetX = 0; offsetY = (canvasHeight - drawHeight) / 2;
             } else {
-                drawHeight = canvasHeight;
-                drawWidth = canvasHeight * imgAspectRatio;
-                offsetX = (canvasWidth - drawWidth) / 2;
-                offsetY = 0;
+                drawHeight = canvasHeight; drawWidth = canvasHeight * cropAspectRatio;
+                offsetX = (canvasWidth - drawWidth) / 2; offsetY = 0;
             }
-            return { drawWidth, drawHeight, offsetX, offsetY };
+            ctx.drawImage(fullCardImg, cropX, cropY, cropWidth, cropHeight, offsetX, offsetY, drawWidth, drawHeight);
         }
 
-        if (bgIllustrationImg && bgIllustrationImg.complete && bgIllustrationImg.naturalWidth > 0) {
-            const { drawWidth, drawHeight, offsetX, offsetY } = calculateDrawDims(bgIllustrationImg);
-            ctx.drawImage(bgIllustrationImg, offsetX, offsetY, drawWidth, drawHeight);
-        } else {
-            console.error("シルエットクイズ用の背景イラスト画像がロードされていないか、無効です。");
-            ctx.fillStyle = 'red';
-            ctx.font = '20px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('画像エラー', canvasWidth / 2, canvasHeight / 2);
-            ctx.fillText('(背景イラスト画像が見つからないか無効です)', canvasWidth / 2, canvasHeight / 2 + 30);
-            return;
-        }
-
-        let blackMaskAlpha = 1.0;
-
-        if (blackMaskAlpha === 0) {
-            return;
-        }
-
-        if (transparentImg && transparentImg.complete && transparentImg.naturalWidth > 0) {
+        if (transparentImg && transparentImg.complete) {
             const offscreenCanvas = document.createElement('canvas');
             offscreenCanvas.width = canvasWidth;
             offscreenCanvas.height = canvasHeight;
             const offscreenCtx = offscreenCanvas.getContext('2d');
-
-            const { drawWidth: transDrawWidth, drawHeight: transDrawHeight, offsetX: transOffsetX, offsetY: transOffsetY } = calculateDrawDims(transparentImg);
-            offscreenCtx.drawImage(transparentImg, transOffsetX, transOffsetY, transDrawWidth, transDrawHeight);
-
+            const imgAspectRatio = transparentImg.naturalWidth / transparentImg.naturalHeight;
+            const canvasAspectRatio = canvasWidth / canvasHeight;
+            let drawWidth, drawHeight, offsetX, offsetY;
+            if (imgAspectRatio > canvasAspectRatio) {
+                drawWidth = canvasWidth; drawHeight = canvasWidth / imgAspectRatio;
+                offsetX = 0; offsetY = (canvasHeight - drawHeight) / 2;
+            } else {
+                drawHeight = canvasHeight; drawWidth = canvasHeight * imgAspectRatio;
+                offsetX = (canvasWidth - drawWidth) / 2; offsetY = 0;
+            }
+            offscreenCtx.drawImage(transparentImg, offsetX, offsetY, drawWidth, drawHeight);
             offscreenCtx.globalCompositeOperation = 'source-in';
             offscreenCtx.fillStyle = 'black';
-            offscreenCtx.fillRect(0, 0, offscreenCanvas.width, offscreenCanvas.height);
-
-            ctx.globalAlpha = blackMaskAlpha;
+            offscreenCtx.fillRect(0, 0, canvasWidth, canvasHeight);
             ctx.drawImage(offscreenCanvas, 0, 0);
-            ctx.globalAlpha = 1.0;
-        } else {
-            console.error("シルエットクイズ用の透過イラスト画像がロードされていないか、無効です。");
-            ctx.fillStyle = 'red';
-            ctx.font = '20px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('画像エラー', canvasWidth / 2, canvasCanvas.height / 2);
-            ctx.fillText('(_transparent.pngが見つからないか無効です)', canvasWidth / 2, canvasHeight / 2 + 30);
         }
     }
 
-    // イラストモザイク化クイズの描画ロジック
     function drawMosaicImage(ctx, img, attempt, destX, destY, destWidth, destHeight) {
-        const pixelSizeLevels = [128, 64, 32, 16, 8, 4];
-        const pixelSize = pixelSizeLevels[attempt] || 1;
-
+        const pixelSize = [128, 64, 32, 16, 8, 4][attempt] || 1;
         if (!currentQuiz.originalImageData || !quizCanvas) {
-            ctx.drawImage(img, destX, destY, destWidth, destHeight);
-            return;
+            ctx.drawImage(img, destX, destY, destWidth, destHeight); return;
         }
-
         const originalData = currentQuiz.originalImageData.data;
         const originalWidth = currentQuiz.originalImageData.width;
         const originalHeight = currentQuiz.originalImageData.height;
-
         ctx.clearRect(0, 0, quizCanvas.width, quizCanvas.height);
-        
-        const mosaicDrawWidth = destWidth;
-        const mosaicDrawHeight = destHeight;
-        const mosaicOffsetX = destX;
-        const mosaicOffsetY = destY;
-
         for (let y = 0; y < originalHeight; y += pixelSize) {
             for (let x = 0; x < originalWidth; x += pixelSize) {
-                let r = 0, g = 0, b = 0, a = 0;
-                let count = 0;
-
+                let r = 0, g = 0, b = 0, a = 0, count = 0;
                 for (let dy = 0; dy < pixelSize && y + dy < originalHeight; dy++) {
                     for (let dx = 0; dx < pixelSize && x + dx < originalWidth; dx++) {
                         const i = ((y + dy) * originalWidth + (x + dx)) * 4;
-                        r += originalData[i];
-                        g += originalData[i + 1];
-                        b += originalData[i + 2];
-                        a += originalData[i + 3];
+                        r += originalData[i]; g += originalData[i+1]; b += originalData[i+2]; a += originalData[i+3];
                         count++;
                     }
                 }
-
                 if (count > 0) {
-                    r = Math.floor(r / count);
-                    g = Math.floor(g / count);
-                    b = Math.floor(b / count);
-                    a = Math.floor(a / count);
+                    ctx.fillStyle = `rgba(${r/count},${g/count},${b/count},${a/count/255})`;
+                    ctx.fillRect(destX + (x / originalWidth) * destWidth, destY + (y / originalHeight) * destHeight, (pixelSize / originalWidth) * destWidth, (pixelSize / originalHeight) * destHeight);
                 }
-
-                ctx.fillStyle = `rgba(${r},${g},${b},${a / 255})`;
-                
-                const rectX = mosaicOffsetX + (x / originalWidth) * mosaicDrawWidth;
-                const rectY = mosaicOffsetY + (y / originalHeight) * mosaicDrawHeight;
-                const rectWidth = (pixelSize / originalWidth) * mosaicDrawWidth;
-                const rectHeight = (pixelSize / originalHeight) * mosaicDrawHeight;
-
-                ctx.fillRect(rectX, rectY, rectWidth, rectHeight);
             }
         }
     }
 
-
-    // 解答チェック
     function checkAnswer() {
         if (!quizAnswerInput || !quizResultArea || !currentQuiz.card) return;
-
         const userAnswer = quizAnswerInput.value.trim().toLowerCase();
         const correctAnswer = currentQuiz.card.name.toLowerCase();
-
-        const toFullWidthKatakana = (str) => {
-            return str.replace(/[\uFF61-\uFF9F]/g, (s) => {
-                return String.fromCharCode(s.charCodeAt(0) + 0x20);
-            });
-        };
-        const toFullWidthKatakanaFromHiragana = (str) => {
-            return str.replace(/[\u3041-\u3096]/g, (s) => {
-                return String.fromCharCode(s.charCodeAt(0) + 0x60);
-            });
-        };
-
-        const normalizedUserAnswer = toFullWidthKatakana(toFullWidthKatakanaFromHiragana(userAnswer)).replace(/\s+/g, '');
-        const normalizedCorrectAnswer = toFullWidthKatakana(toFullWidthKatakanaFromHiragana(correctAnswer)).replace(/\s+/g, '');
-
-        if (normalizedUserAnswer === normalizedCorrectAnswer) {
+        const normalize = (str) => str.replace(/[\uFF61-\uFF9F]/g, s => String.fromCharCode(s.charCodeAt(0) + 0x20)).replace(/[\u3041-\u3096]/g, s => String.fromCharCode(s.charCodeAt(0) + 0x60)).replace(/\s+/g, '');
+        if (normalize(userAnswer) === normalize(correctAnswer)) {
             quizResultArea.textContent = '正解！';
-            quizResultArea.classList.add('correct');
-            quizResultArea.classList.remove('incorrect');
+            quizResultArea.className = 'quiz-result-area correct';
             endQuiz(true);
         } else {
             quizResultArea.textContent = '不正解...';
-            quizResultArea.classList.add('incorrect');
-            quizResultArea.classList.remove('correct');
+            quizResultArea.className = 'quiz-result-area incorrect';
             currentQuiz.attemptCount++;
-
             if (currentQuiz.type === 'cardName') {
                 displayCardNameQuizHint();
             } else {
@@ -418,52 +342,28 @@ async function initMinigamesSection() {
         }
     }
 
-    // クイズ終了
     function endQuiz(isCorrect) {
         if (!quizAnswerInput || !quizSubmitButton || !quizNextButton || !quizAnswerDisplay || !currentQuiz.quizCtx || !currentQuiz.quizCanvas || !quizResetButton) return;
-
         quizAnswerInput.disabled = true;
         quizSubmitButton.style.display = 'none';
         quizNextButton.style.display = 'none';
-
         quizAnswerDisplay.innerHTML = `正解は「<strong>${currentQuiz.card.name}</strong>」でした！`;
-
         const ctx = currentQuiz.quizCtx;
-        let finalImage = currentQuiz.fullCardImage;
-
-        if (currentQuiz.type === 'enlarge' || currentQuiz.type === 'silhouette' || currentQuiz.type === 'mosaic') {
-            finalImage = currentQuiz.fullCardImage;
-        }
-
+        const finalImage = currentQuiz.fullCardImage;
         if (finalImage) {
             ctx.clearRect(0, 0, currentQuiz.quizCanvas.width, currentQuiz.quizCanvas.height);
-
             const imgAspectRatio = finalImage.naturalWidth / finalImage.naturalHeight;
             const canvasAspectRatio = currentQuiz.quizCanvas.width / currentQuiz.quizCanvas.height;
-
             let drawWidth, drawHeight, offsetX, offsetY;
-
             if (imgAspectRatio > canvasAspectRatio) {
-                drawWidth = currentQuiz.quizCanvas.width;
-                drawHeight = currentQuiz.quizCanvas.width / imgAspectRatio;
-                offsetX = 0;
-                offsetY = (currentQuiz.quizCanvas.height - drawHeight) / 2;
+                drawWidth = currentQuiz.quizCanvas.width; drawHeight = currentQuiz.quizCanvas.width / imgAspectRatio;
+                offsetX = 0; offsetY = (currentQuiz.quizCanvas.height - drawHeight) / 2;
             } else {
-                drawHeight = currentQuiz.quizCanvas.height;
-                drawWidth = canvasAspectRatio === 0 ? finalImage.naturalWidth : currentQuiz.quizCanvas.height * imgAspectRatio;
-                offsetX = (currentQuiz.quizCanvas.width - drawWidth) / 2;
-                offsetY = 0;
+                drawHeight = currentQuiz.quizCanvas.height; drawWidth = canvasAspectRatio === 0 ? finalImage.naturalWidth : currentQuiz.quizCanvas.height * imgAspectRatio;
+                offsetX = (currentQuiz.quizCanvas.width - drawWidth) / 2; offsetY = 0;
             }
             ctx.drawImage(finalImage, offsetX, offsetY, drawWidth, drawHeight);
-        } else {
-             console.error("最終表示用の画像がロードされていないか、無効です。");
-             ctx.fillStyle = 'red';
-             ctx.font = '20px Arial';
-             ctx.textAlign = 'center';
-             ctx.fillText('画像エラー', quizCanvas.width / 2, quizCanvas.height / 2);
-             ctx.fillText('(_transparent.pngが見つからないか無効です)', quizCanvas.width / 2, quizCanvas.height / 2 + 30);
         }
-
         quizResetButton.style.display = 'inline-block';
     }
 
