@@ -22,6 +22,7 @@ body {
     color: var(--color-text-main);
     margin: 0;
     padding: 20px;
+    -webkit-text-size-adjust: 100%; /* iOSでの文字サイズ自動調整を無効化 */
 }
 
 .page-container {
@@ -44,6 +45,7 @@ body {
 .page-header h1 {
     color: var(--color-primary);
     margin: 0;
+    font-size: 2em;
 }
 
 .page-header p {
@@ -124,6 +126,7 @@ button:hover {
     min-height: 80px;
     text-align: left;
     white-space: pre-wrap;
+    word-wrap: break-word;
 }
 .quiz-image-area {
     margin: 15px auto;
@@ -165,6 +168,7 @@ button:hover {
 .quiz-answer-display {
     font-size: 1.1em;
     margin-bottom: 15px;
+    word-wrap: break-word;
 }
 .quiz-controls button {
     background-color: var(--color-text-light);
@@ -231,4 +235,32 @@ button:hover {
     display: flex;
     justify-content: center;
     gap: 10px;
+}
+
+/* --- スマートフォン対応 --- */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    .page-container {
+        padding: 15px 20px;
+    }
+    .page-header h1 {
+        font-size: 1.5em;
+    }
+    .section-title {
+        font-size: 1.4em;
+    }
+    .minigame-list {
+        grid-template-columns: 1fr; /* 1列にする */
+    }
+    .quiz-image-area {
+        height: 250px;
+    }
+    .quiz-input-area {
+        flex-direction: column;
+    }
+    .quiz-input-area input {
+        max-width: none;
+    }
 }
