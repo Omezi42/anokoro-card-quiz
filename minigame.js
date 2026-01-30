@@ -184,13 +184,14 @@ async function initMinigamesSection() {
         });
 
         const encodedCardName = encodeURIComponent(cardName);
-        const baseUrl = 'https://omezi42.github.io/tcg-assistant-images/cards/';
+        const baseUrl = 'https://raw.githubusercontent.com/Omezi42/AnokoroImageFolder/main/images/captured_cards/';
+        const transparentBaseUrl = 'https://raw.githubusercontent.com/Omezi42/AnokoroImageFolder/main/images/transparent_cards/';
         
         try {
             currentQuiz.fullCardImage = await loadImage(`${baseUrl}${encodedCardName}.png`);
             
             if (quizType === 'silhouette') {
-                currentQuiz.transparentIllustrationImage = await loadImage(`${baseUrl}${encodedCardName}_transparent.png`);
+                currentQuiz.transparentIllustrationImage = await loadImage(`${transparentBaseUrl}${encodedCardName}.png`);
             }
 
             const parentWidth = quizImageArea ? (quizImageArea.clientWidth > 0 ? quizImageArea.clientWidth : 400) : 400;
